@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Professional Calculator</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #06101f;
+            --panel: rgba(18, 28, 48, 0.78);
+            --panel-soft: rgba(255, 255, 255, 0.08);
+            --text: #eef5ff;
+            --muted: #94a5c7;
+            --accent: #7c5cff;
+            --accent-strong: #42d0ff;
+            --accent-glow: rgba(66, 208, 255, 0.3);
+            --error: #ff6b6b;
+            --shadow: 0 35px 90px rgba(0, 0, 0, 0.35);
+            --radius: 32px;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            display: grid;
+            place-items: center;
+            padding: clamp(12px, 4vw, 32px);
+            background: radial-gradient(circle at top left, rgba(81, 110, 255, 0.18), transparent 26%),
+                        radial-gradient(circle at bottom right, rgba(42, 220, 255, 0.14), transparent 22%),
+                        linear-gradient(180deg, #06101f 0%, #0b1320 100%);
+            overflow-x: clip;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at 20% 10%, rgba(124, 92, 255, 0.08), transparent 20%),
+                        radial-gradient(circle at 80% 80%, rgba(66, 210, 255, 0.06), transparent 18%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .app-shell {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 1080px;
+            display: grid;
+            gap: clamp(16px, 3vw, 26px);
+            grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr);
+            align-items: start;
+            animation: appear 0.75s ease-out both;
+            min-width: 0;
+            box-sizing: border-box;
+            justify-self: center;
+        }
+
+        .calculator-card,
+        .history-panel {
+            position: relative;
+            min-width: 0;
+            max-width: 100%;
+            background: var(--panel);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: var(--radius);
+            backdrop-filter: blur(24px);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+        }
+
+        .calculator-card::before,
+        .history-panel::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .calculator-card:hover,
+        .history-panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 42px 110px rgba(0, 0, 0, 0.4);
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+
+        .calculator-card {
+            padding: clamp(20px, 5vw, 34px);
+        }
+
+        .title-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 28px;
+            font-size: 1.05rem;
+            letter-spacing: 0.04em;
+            color: var(--muted);
+        }
+
+        .screen {
+            position: relative;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 30px;
+            padding: clamp(18px, 4vw, 28px);
+            margin-bottom: clamp(16px, 3vw, 28px);
+            min-height: clamp(140px, 25vw, 170px);
+            display: grid;
+            gap: 14px;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+            transition: transform 0.3s ease, background 0.3s ease, border-color 0.3s ease;
+        }
+
+        .screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 70%);
+            pointer-events: none;
+        }
+
+        .screen:hover {
+            transform: translateY(-2px);
+        }
+
+        .expression {
+            font-size: clamp(2rem, 3vw, 3.4rem);
+            line-height: 1.05;
+            word-break: break-all;
+            min-height: 2.8em;
+            letter-spacing: 0.02em;
+        }
+
+        .preview {
+            color: var(--accent-strong);
+            font-size: 1rem;
+            opacity: 0.92;
+            min-height: 1.2em;
+        }
+
+        .button-grid {
+            display: grid;
+            gap: clamp(10px, 2vw, 14px);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            animation: gridAppear 0.75s ease-out both;
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: clamp(18px, 3vw, 22px);
+            padding: clamp(14px, 2.5vw, 18px) clamp(12px, 2vw, 16px);
+            min-height: clamp(54px, 12vw, 68px);
+            font-size: clamp(0.9rem, 2.5vw, 1.05rem);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.07);
+            cursor: pointer;
+            transition: transform 0.26s ease, background 0.26s ease, box-shadow 0.26s ease, color 0.26s ease;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 18px 34px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(14px);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.14);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 10px 22px rgba(0, 0, 0, 0.12);
+        }
+
+        .btn:focus-visible {
+            outline: 2px solid rgba(66, 208, 255, 0.7);
+            outline-offset: 3px;
+        }
+
+        .operator {
+            background: rgba(124, 92, 255, 0.24);
+            color: #f6f3ff;
+            box-shadow: 0 0 24px rgba(124, 92, 255, 0.18);
+        }
+
+        .operator:hover {
+            background: rgba(124, 92, 255, 0.36);
+            box-shadow: 0 0 32px rgba(124, 92, 255, 0.28);
+        }
+
+        .control {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+        }
+
+        .control:hover {
+            color: var(--text);
+        }
+
+        .equal {
+            background: linear-gradient(135deg, #5e7bff, #2bd1ff);
+            color: #070b1b;
+            box-shadow: 0 0 32px rgba(45, 209, 255, 0.3);
+        }
+
+        .equal:hover {
+            background: linear-gradient(135deg, #7ba5ff, #4fe6ff);
+            box-shadow: 0 0 46px rgba(45, 209, 255, 0.45);
+        }
+
+        .full-width {
+            grid-column: span 4;
+        }
+
+        .history-panel {
+            padding: clamp(20px, 4vw, 30px);
+            display: grid;
+            gap: clamp(14px, 2.5vw, 20px);
+            min-height: clamp(300px, 50vh, 360px);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--muted);
+            font-size: 0.98rem;
+        }
+
+        .small-button {
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            color: var(--text);
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .small-button:hover {
+            background: rgba(255, 255, 255, 0.18);
+            transform: translateY(-1px);
+        }
+
+        .history-list {
+            display: grid;
+            gap: clamp(10px, 2vw, 14px);
+            max-height: clamp(280px, 40vh, 420px);
+            overflow-y: auto;
+            padding-right: 6px;
+            animation: historyAppear 0.75s ease-out both;
+        }
+
+        .history-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.13);
+            border-radius: 999px;
+        }
+
+        .history-item {
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            cursor: pointer;
+            transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.14);
+            transform: translateX(4px);
+        }
+
+        .history-expression {
+            font-size: 0.95rem;
+            color: var(--text);
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .history-result {
+            color: var(--accent-strong);
+            font-weight: 700;
+        }
+
+        @media (max-width: 900px) {
+            .app-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .calculator-card,
+            .history-panel {
+                border-radius: 28px;
+            }
+
+            .history-panel {
+                padding: clamp(20px, 4vw, 26px);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .calculator-card,
+            .history-panel {
+                border-radius: 24px;
+            }
+
+            .history-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+            }
+
+            .history-item {
+                padding: clamp(14px, 3vw, 20px);
+            }
+        }
+
+        @keyframes appear {
+            from { opacity: 0; transform: translateY(24px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes gridAppear {
+            from { opacity: 0; transform: translateY(18px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes historyAppear {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <div class="calculator-card">
+            <div class="title-bar">
+                <span>Modern Calculator</span>
+                <span>Dark theme • History • Keyboard</span>
+            </div>
+
+            <div class="screen">
+                <div class="expression" id="expressionDisplay">0</div>
+                <div class="preview" id="previewDisplay"></div>
+            </div>
+
+            <div class="button-grid">
+                <button class="btn control" data-action="all-clear">AC</button>
+                <button class="btn control" data-action="clear">C</button>
+                <button class="btn control operator" data-value="%">%</button>
+                <button class="btn operator" data-value="/">÷</button>
+
+                <button class="btn" data-value="7">7</button>
+                <button class="btn" data-value="8">8</button>
+                <button class="btn" data-value="9">9</button>
+                <button class="btn operator" data-value="*">×</button>
+
+                <button class="btn" data-value="4">4</button>
+                <button class="btn" data-value="5">5</button>
+                <button class="btn" data-value="6">6</button>
+                <button class="btn operator" data-value="-">−</button>
+
+                <button class="btn" data-value="1">1</button>
+                <button class="btn" data-value="2">2</button>
+                <button class="btn" data-value="3">3</button>
+                <button class="btn operator" data-value="+">+</button>
+
+                <button class="btn" data-value="0">0</button>
+                <button class="btn" data-value=".">.</button>
+                <button class="btn operator" data-value="√">√</button>
+                <button class="btn equal" data-action="calculate">=</button>
+
+                <button class="btn control full-width" data-value="^">^ Power</button>
+            </div>
+        </div>
+
+        <aside class="history-panel">
+            <div class="history-header">
+                <span>Calculation History</span>
+                <button class="small-button" id="clearHistory">Clear</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="history-item">
+                    <div class="history-expression">Start typing to build a calculation.</div>
+                    <div class="history-result">Results appear here.</div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // Calculator state
+        const expressionDisplay = document.getElementById('expressionDisplay');
+        const previewDisplay = document.getElementById('previewDisplay');
+        const historyList = document.getElementById('historyList');
+
+        let expression = '';
+        let lastResult = null;
+        let lastAction = '';
+        const history = [];
+
+        const buttons = document.querySelectorAll('.btn');
+
+        // Helper for expression rendering
+        function renderDisplay() {
+            expressionDisplay.textContent = expression || '0';
+            updatePreview();
+        }
+
+        function updatePreview() {
+            if (!expression || /[+\-*/%^√]$/.test(expression) || expression === '-') {
+                previewDisplay.textContent = '';
+                return;
+            }
+
+            const result = safeEvaluate(expression);
+            previewDisplay.textContent = result === null ? '' : `= ${result}`;
+        }
+
+        function addHistory(entry, result) {
+            history.unshift({ entry, result });
+            if (history.length > 10) history.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            historyList.innerHTML = '';
+
+            if (!history.length) {
+                const emptyItem = document.createElement('div');
+                emptyItem.className = 'history-item';
+
+                const emptyExpression = document.createElement('div');
+                emptyExpression.className = 'history-expression';
+                emptyExpression.textContent = 'No entries yet.';
+
+                emptyItem.appendChild(emptyExpression);
+                historyList.appendChild(emptyItem);
+                return;
+            }
+
+            history.forEach(entry => {
+                const row = document.createElement('div');
+                row.className = 'history-item';
+                row.dataset.expression = entry.entry;
+
+                const expressionNode = document.createElement('div');
+                expressionNode.className = 'history-expression';
+                expressionNode.textContent = entry.entry;
+
+                const resultNode = document.createElement('div');
+                resultNode.className = 'history-result';
+                resultNode.textContent = entry.result;
+
+                row.appendChild(expressionNode);
+                row.appendChild(resultNode);
+                historyList.appendChild(row);
+            });
+        }
+
+        function clearAll() {
+            expression = '';
+            lastResult = null;
+            lastAction = 'clear';
+            renderDisplay();
+            previewDisplay.textContent = '';
+        }
+
+        function clearLastEntry() {
+            if (!expression) return;
+            expression = expression.endsWith('√') ? expression.slice(0, -1) : expression.slice(0, -1);
+            lastAction = 'input';
+            renderDisplay();
+        }
+
+        function isOperator(value) {
+            return ['+', '-', '*', '/', '%', '^'].includes(value);
+        }
+
+        function getLastNumberFragment() {
+            const match = expression.match(/(-?\d*\.?\d*)$/);
+            return match ? match[0] : '';
+        }
+
+        function appendDigit(value) {
+            if (lastAction === 'result') {
+                expression = '';
+            }
+            expression += value;
+            lastAction = 'input';
+            renderDisplay();
+        }
+
+        function appendDot() {
+            const lastNumber = getLastNumberFragment();
+            if (lastNumber.includes('.')) return;
+            if (!lastNumber || /[+\-*/%^√]$/.test(expression)) {
+                expression += '0.';
+            } else {
+                expression += '.';
+            }
+            lastAction = 'input';
+            renderDisplay();
+        }
+
+        function appendOperator(value) {
+            if (!expression && lastResult !== null) {
+                expression = String(lastResult);
+            }
+
+            if (!expression && value === '-') {
+                expression = '-';
+                renderDisplay();
+                return;
+            }
+
+            if (!expression) return;
+
+            if (isOperator(expression.slice(-1))) {
+                expression = expression.slice(0, -1);
+            }
+
+            expression += value;
+            lastAction = 'input';
+            renderDisplay();
+        }
+
+        function appendSqrt() {
+            if (lastAction === 'result') {
+                expression = '';
+            }
+
+            if (expression && /[\d)]$/.test(expression)) {
+                expression += '*';
+            }
+            expression += '√';
+            lastAction = 'input';
+            renderDisplay();
+        }
+
+        function calculateResult() {
+            if (!expression || /[+\-*/%^√]$/.test(expression)) {
+                previewDisplay.textContent = 'Error';
+                return;
+            }
+            const result = safeEvaluate(expression);
+            if (result === null || !Number.isFinite(result)) {
+                previewDisplay.textContent = 'Error';
+                return;
+            }
+            addHistory(expression, result);
+            expression = String(result);
+            lastResult = result;
+            lastAction = 'result';
+            renderDisplay();
+        }
+
+        function tokenize(expr) {
+            const tokens = [];
+            const input = expr.replace(/\s+/g, '');
+            let i = 0;
+
+            while (i < input.length) {
+                const ch = input[i];
+
+                if (/\d/.test(ch) || ch === '.') {
+                    let number = ch;
+                    i += 1;
+
+                    while (i < input.length && /[\d.]/.test(input[i])) {
+                        number += input[i++];
+                    }
+
+                    if (number === '.') number = '0.';
+                    tokens.push({ type: 'number', value: parseFloat(number) });
+                    continue;
+                }
+
+                if (ch === '√') {
+                    tokens.push({ type: 'func', value: 'sqrt' });
+                    i += 1;
+                    continue;
+                }
+
+                if ('+-*/%^'.includes(ch)) {
+                    if (
+                        ch === '-' &&
+                        (tokens.length === 0 ||
+                            tokens[tokens.length - 1].type === 'operator' ||
+                            tokens[tokens.length - 1].type === 'func')
+                    ) {
+                        const nextChar = input[i + 1];
+                        if (nextChar && (/[\d.]/.test(nextChar))) {
+                            let number = '-';
+                            i += 1;
+                            while (i < input.length && /[\d.]/.test(input[i])) {
+                                number += input[i++];
+                            }
+                            tokens.push({ type: 'number', value: parseFloat(number) });
+                            continue;
+                        }
+                    }
+
+                    tokens.push({ type: 'operator', value: ch });
+                    i += 1;
+                    continue;
+                }
+
+                throw new Error('Invalid character');
+            }
+
+            return tokens;
+        }
+
+        function toRPN(tokens) {
+            const output = [];
+            const operators = [];
+            const precedence = { '+': 2, '-': 2, '*': 3, '/': 3, '%': 3, '^': 4 };
+            const associativity = { '+': 'left', '-': 'left', '*': 'left', '/': 'left', '%': 'left', '^': 'right' };
+
+            tokens.forEach(token => {
+                if (token.type === 'number') {
+                    output.push(token);
+                    return;
+                }
+
+                if (token.type === 'func') {
+                    operators.push(token);
+                    return;
+                }
+
+                if (token.type === 'operator') {
+                    while (operators.length) {
+                        const top = operators[operators.length - 1];
+                        if (top.type === 'func') {
+                            output.push(operators.pop());
+                            continue;
+                        }
+
+                        if (top.type === 'operator') {
+                            const currentPrec = precedence[token.value];
+                            const topPrec = precedence[top.value];
+
+                            if (
+                                (associativity[token.value] === 'left' && currentPrec <= topPrec) ||
+                                (associativity[token.value] === 'right' && currentPrec < topPrec)
+                            ) {
+                                output.push(operators.pop());
+                                continue;
+                            }
+                        }
+
+                        break;
+                    }
+                    operators.push(token);
+                }
+            });
+
+            while (operators.length) {
+                output.push(operators.pop());
+            }
+
+            return output;
+        }
+
+        function evaluateRPN(rpn) {
+            const stack = [];
+
+            rpn.forEach(token => {
+                if (token.type === 'number') {
+                    stack.push(token.value);
+                    return;
+                }
+
+                if (token.type === 'func') {
+                    const value = stack.pop();
+                    if (value === undefined) throw new Error('Invalid function input');
+                    if (value < 0) throw new Error('Square root of negative number');
+                    stack.push(Math.sqrt(value));
+                    return;
+                }
+
+                if (token.type === 'operator') {
+                    const b = stack.pop();
+                    const a = stack.pop();
+                    if (a === undefined || b === undefined) throw new Error('Invalid operator input');
+
+                    let result;
+                    switch (token.value) {
+                        case '+':
+                            result = a + b;
+                            break;
+                        case '-':
+                            result = a - b;
+                            break;
+                        case '*':
+                            result = a * b;
+                            break;
+                        case '/':
+                            if (b === 0) throw new Error('Division by zero');
+                            result = a / b;
+                            break;
+                        case '%':
+                            result = a % b;
+                            break;
+                        case '^':
+                            result = Math.pow(a, b);
+                            break;
+                        default:
+                            throw new Error('Unknown operator');
+                    }
+
+                    stack.push(result);
+                }
+            });
+
+            if (stack.length !== 1) throw new Error('Invalid expression');
+            return stack[0];
+        }
+
+        function safeEvaluate(expr) {
+            try {
+                const tokens = tokenize(expr);
+                const rpn = toRPN(tokens);
+                const result = evaluateRPN(rpn);
+                return Number.isFinite(result) ? parseFloat(result.toFixed(10)) : null;
+            } catch {
+                return null;
+            }
+        }
+
+        buttons.forEach(button => {
+            button.addEventListener('click', () => {
+                const value = button.getAttribute('data-value');
+                const action = button.getAttribute('data-action');
+
+                if (action === 'all-clear') {
+                    clearAll();
+                    return;
+                }
+
+                if (action === 'clear') {
+                    clearLastEntry();
+                    return;
+                }
+
+                if (action === 'calculate') {
+                    calculateResult();
+                    return;
+                }
+
+                if (!value) return;
+
+                if (value === '.') {
+                    appendDot();
+                    return;
+                }
+
+                if (value === '√') {
+                    appendSqrt();
+                    return;
+                }
+
+                if (isOperator(value)) {
+                    appendOperator(value);
+                    return;
+                }
+
+                appendDigit(value);
+            });
+        });
+
+        document.addEventListener('keydown', event => {
+            const key = event.key;
+
+            if (/^[0-9]$/.test(key)) {
+                appendDigit(key);
+                return;
+            }
+
+            if (key === '.') {
+                appendDot();
+                return;
+            }
+
+            if (['+', '-', '*', '/', '%', '^'].includes(key)) {
+                appendOperator(key);
+                return;
+            }
+
+            if (key === 'Enter' || key === '=') {
+                calculateResult();
+                return;
+            }
+
+            if (key === 'Backspace') {
+                clearLastEntry();
+                return;
+            }
+
+            if (key === 'Escape' || key.toLowerCase() === 'c') {
+                clearAll();
+                return;
+            }
+
+            if (key.toLowerCase() === 's') {
+                appendSqrt();
+                return;
+            }
+        });
+
+        historyList.addEventListener('click', event => {
+            const item = event.target.closest('.history-item');
+            if (!item) return;
+            const value = item.dataset.expression;
+            if (value) {
+                expression = value;
+                lastAction = 'input';
+                renderDisplay();
+            }
+        });
+
+        document.getElementById('clearHistory').addEventListener('click', () => {
+            history.length = 0;
+            renderHistory();
+        });
+
+        renderDisplay();
+        renderHistory();
+    </script>
